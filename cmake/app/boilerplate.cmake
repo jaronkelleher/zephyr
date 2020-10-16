@@ -341,11 +341,17 @@ foreach(root ${BOARD_ROOT})
       message("Board alias ${BOARD_ALIAS} is hiding the real board of same name")
     endif()
   endif()
-  find_path(BOARD_DIR
-    NAMES ${BOARD}_defconfig
-    PATHS ${root}/boards/*/*
-    NO_DEFAULT_PATH
-    )
+  # Perform a recursive search underneath the ${root}/boards directory to find a
+  # file named ${BOARD}_defconfig. Once found, set the BOARD_DIR variable to the
+  # parent directory and set the BOARD_DIR_ROOT variable so it can be used later. Once
+  # the directory is found, this search does not need to be performed again.
+  # Note: find_path() does not search recursively, and is not able to perform this task.
+  if(NOT BOARD_DIR)
+    file(GLOB_RECURSE tmp_BOARD_DIR ${root}/boards/*/${BOARD}_defconfig)
+    get_filename_component(BOARD_DIR ${tmp_BOARD_DIR} DIRECTORY)
+    set(BOARD_DIR_ROOT ${root}/boards)
+    unset(tmp_BOARD_DIR)
+  endif()
   if(BOARD_DIR AND NOT (${root} STREQUAL ${ZEPHYR_BASE}))
     set(USING_OUT_OF_TREE_BOARD 1)
   endif()
@@ -455,7 +461,17 @@ if(DEFINED SHIELD AND NOT (SHIELD-NOTFOUND STREQUAL ""))
   message(FATAL_ERROR "Invalid usage")
 endif()
 
+# Walk up the directory tree to find the first folder underneath ${BOARD_ROOT}/boards/.
+# This folder name will be used for the ARCH variable
 get_filename_component(BOARD_ARCH_DIR ${BOARD_DIR}      DIRECTORY)
+get_filename_component(BOARD_ARCH_DIR_PARENT ${BOARD_ARCH_DIR} DIRECTORY)
+while(NOT (BOARD_ARCH_DIR_PARENT STREQUAL BOARD_DIR_ROOT))
+  get_filename_component(BOARD_ARCH_DIR        ${BOARD_ARCH_DIR} DIRECTORY)
+  get_filename_component(BOARD_ARCH_DIR_PARENT ${BOARD_ARCH_DIR} DIRECTORY)
+endwhile()
+unset(BOARD_ARCH_DIR_PARENT)
+unset(BOARD_DIR_ROOT)
+
 get_filename_component(BOARD_FAMILY   ${BOARD_DIR}      NAME)
 get_filename_component(ARCH           ${BOARD_ARCH_DIR} NAME)
 
